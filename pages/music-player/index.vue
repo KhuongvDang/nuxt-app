@@ -28,7 +28,7 @@
       </div>
       <div class="flex">
         <div class="flex-1">
-          <div class="p-8">
+          <div class="p-8 invisible">
             <div
               class="w-72 h-72 p-5 bg-gray-400 rounded-full flex justify-center items-center"
             >
@@ -61,8 +61,21 @@
               <div>{{ formatTimer(currentTime) }}</div>
               <div>{{ formatTimer(timeLength) }}</div>
             </div>
-            <div class="timeline w-full mt-2">
-              <div class="w-full h-1 bg-gray-300 rounded-full"></div>
+            <div class="timeline w-full mt-2 relative cursor-pointer">
+              <slider
+                ref="elTimeline"
+                v-model="currentTime"
+                :max="timeLength"
+                :min="0"
+                :step="1"
+                color="#f87171"
+                track-color="#d1d5db"
+                :handleScale="1"
+                @mousedown="startDrag"
+                @touchstart="startDrag"
+                @mouseup="resumeAfterDrag"
+                @touchend="resumeAfterDrag"
+              />
             </div>
           </div>
         </div>
@@ -208,32 +221,40 @@
 
 <script lang="ts" setup>
 // IMPORT
+import slider from "vue3-slider";
+
 import song1 from "public/musics/Love08-Duongg-7078875.mp3";
 import { PLAY_MODE, PLAY_STATUS, LIST_SONGS } from "@/utils/constants";
 // VARIABLES
 const constPlayMode = PLAY_MODE;
 const constPlayStatus = PLAY_STATUS;
+let myInterval = null;
 // STATES
 const playMode = ref<number>(PLAY_MODE.normal);
 const isPlay = ref<number>(PLAY_STATUS.stop);
 const elDish = ref(null);
+const elTimeline = ref(null);
 const audio = ref(null);
 const currentTime = ref<number>(0);
-const timeLength = ref<number>(0);
+const timeLength = ref<number>(1);
+const currentTimeLineWidth = ref<number>(0);
 // METHODS
 
 const changePlayMode = () => {
   switch (playMode.value) {
     case PLAY_MODE.normal: {
       playMode.value = PLAY_MODE.repeat;
+      audio.value.loop = true;
       break;
     }
     case PLAY_MODE.repeat: {
       playMode.value = PLAY_MODE.shuffle;
+      audio.value.loop = false;
       break;
     }
     case PLAY_MODE.shuffle: {
       playMode.value = PLAY_MODE.normal;
+      audio.value.loop = false;
       break;
     }
     default:
@@ -241,37 +262,50 @@ const changePlayMode = () => {
   }
 };
 
-const formatTimer = (sec) => {
+const formatTimer = (sec: number | string) => {
   sec = Number(sec);
-  var h = Math.floor(sec / 3600);
-  var m = Math.floor((sec % 3600) / 60);
-  var s = Math.floor((sec % 3600) % 60);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor((sec % 3600) % 60);
 
-  var hDisplay = h > 0 ? h + ":" : "";
-  var mDisplay = m > 0 ? m + ":" : "00:";
-  var sDisplay = s > 10 ? s : "0" + s;
+  const hDisplay = h > 0 ? h + ":" : "";
+  const mDisplay = m > 0 ? m + ":" : "00:";
+  const sDisplay = s > 9 ? s : "0" + s;
   return hDisplay + mDisplay + sDisplay;
 };
 
 const changePlayStatus = () => {
   const boolStatus = isPlay.value !== PLAY_STATUS.play;
   isPlay.value = boolStatus ? PLAY_STATUS.play : PLAY_STATUS.pause;
-  const currentClass = elDish.value.className;
-  if (isPlay.value === PLAY_STATUS.play) {
-    audio.value.play();
-    elDish.value.className =
-      currentClass.replace("pause", "") +
-      (currentClass.includes("animate-rounding") ? "" : " animate-rounding");
-  }
-  if (isPlay.value === PLAY_STATUS.pause) {
-    audio.value.pause();
-    elDish.value.className = currentClass + " pause";
-  }
 };
 
 const runTimming = () => {
   currentTime.value = audio.value.currentTime;
-  console.log("inter");
+  const rangeWidth = elTimeline.value.offsetWidth;
+  currentTimeLineWidth.value = Math.round(
+    (currentTime.value / audio.value.duration) * rangeWidth
+  );
+  if (
+    audio.value.currentTime > 0 &&
+    audio.value.paused &&
+    isPlay.value === PLAY_STATUS.play
+  ) {
+    isPlay.value = PLAY_STATUS.stop;
+    currentTime.value = 0;
+  }
+};
+
+const startDrag = (e: Event) => {
+  if (isPlay.value === PLAY_STATUS.play) {
+    isPlay.value = PLAY_STATUS.pause;
+  }
+  console.log("start");
+};
+
+const resumeAfterDrag = (e: Event) => {
+  audio.value.currentTime = currentTime.value;
+  isPlay.value = PLAY_STATUS.play;
+  console.log("end");
 };
 
 onMounted(() => {
@@ -279,12 +313,21 @@ onMounted(() => {
   audio.value.addEventListener("loadeddata", function () {
     timeLength.value = Math.round(this.duration);
   });
-  watch(isPlay, (current, prev) => {
+
+  watch(isPlay, (current) => {
+    const currentClass = elDish.value.className;
     if (current === PLAY_STATUS.play) {
-      console.log("play");
+      audio.value.play();
+      myInterval = setInterval(runTimming, 1000);
+      elDish.value.className =
+        currentClass.replace("pause", "") +
+        (currentClass.includes("animate-rounding") ? "" : " animate-rounding");
     } else {
-      console.log("pause");
-      clearInterval(intervalTimer);
+      if (current === PLAY_STATUS.pause) {
+        audio.value.pause();
+      }
+      clearInterval(myInterval);
+      elDish.value.className = currentClass + " pause";
     }
   });
 });
