@@ -13,7 +13,8 @@
   "dependencies": {
     "animejs": "^3.2.1",
     "three": "^0.134.0",
-    "troisjs": "^0.3.4"
+    "troisjs": "^0.3.4",
+    "vue3-slider": "^1.8.0"
   },
   "type": "module"
 }
